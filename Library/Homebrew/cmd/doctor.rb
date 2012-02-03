@@ -182,11 +182,13 @@ def check_gcc_versions
   gcc_40 = MacOS.gcc_40_build_version
 
   if gcc_42 == nil
-    puts <<-EOS.undent
-      We couldn't detect gcc 4.2.x. Some formulae require this compiler.
-      NOTE: Versions of XCode newer than 4.2 don't include gcc 4.2.x.
+    # Don't show this warning on Xcode 4.2+
+    if MacOS.xcode_version < "4.2"
+      puts <<-EOS.undent
+        We couldn't detect gcc 4.2.x. Some formulae require this compiler.
 
-    EOS
+      EOS
+    end
   elsif gcc_42 < RECOMMENDED_GCC_42
     puts <<-EOS.undent
       Your gcc 4.2.x version is older than the recommended version. It may be advisable
@@ -751,12 +753,14 @@ def check_missing_deps
 end
 
 def check_git_status
-  repo = HOMEBREW_REPOSITORY
-  status_cmd = "git --git-dir=#{repo}/.git --work-tree=#{repo} status -s #{repo}/Library/Homebrew"
-  if system "/usr/bin/which -s git" and File.directory? repo+'.git' and not `#{status_cmd}`.empty?
-    ohai "You have uncommitted modifications to Homebrew's core."
-    puts "Unless you know what you are doing, you should: git reset --hard"
-    puts
+  HOMEBREW_REPOSITORY.cd do
+    cmd = `git status -s Library/Homebrew/`.chomp
+    if system "/usr/bin/which -s git" and File.directory? '.git' and not cmd.empty?
+      ohai "You have uncommitted modifications to Homebrew's core."
+      puts "Unless you know what you are doing, you should run:"
+      puts "cd "+HOMEBREW_REPOSITORY+" && git reset --hard"
+      puts
+    end
   end
 end
 
@@ -797,6 +801,18 @@ def check_git_version
 
     EOS
   end
+end
+
+def check_for_enthought_python
+  return unless system "/usr/bin/which -s enpkg"
+  puts <<-EOS.undent
+    Enthought Python was found in your PATH.
+
+    This can cause build problems, as this software installs its own
+    copies of iconv and libxml2 into folders that are picked up by
+    other build systems.
+
+  EOS
 end
 
 module Homebrew extend self
@@ -844,6 +860,7 @@ module Homebrew extend self
       check_git_status
       check_for_leopard_ssl
       check_git_version
+      check_for_enthought_python
     ensure
       $stdout = old_stdout
     end
